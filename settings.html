@@ -210,7 +210,7 @@
     });
 
     document.getElementById('resetCredsBtn').addEventListener('click', function () {
-      if (confirm('Are you sure you want to reset all users back to the default admin (admin / Admin@CredBaba2026#Secure)?')) {
+      if (confirm('Are you sure you want to reset all users back to the default primary administrator account?')) {
         CredBabaBackofficeAuth.resetToDefaults();
         showToast('Users reset to defaults.');
       }
