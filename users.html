@@ -21,8 +21,8 @@
 <link rel="stylesheet" href="assets/css/backoffice.css">
 <script src="assets/js/backoffice-auth.js"></script>
 <script>
-  if (!CredBabaBackofficeAuth.requireAuth()) {
-    throw new Error('Unauthorized');
+  if (!CredBabaBackofficeAuth.enforcePageAccess('users')) {
+    throw new Error('Access Denied');
   }
 </script>
 </head>
@@ -39,20 +39,20 @@
     </div>
 
     <nav class="admin-nav">
-      <a href="blogs.html" class="admin-nav-link">
+      <a href="blogs.html" class="admin-nav-link" data-perm="blogs">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
         Blogs
       </a>
-      <a href="editor.html" class="admin-nav-link">
+      <a href="editor.html" class="admin-nav-link" data-perm="editor">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         New Blog
       </a>
-      <a href="users.html" class="admin-nav-link active">
+      <a href="users.html" class="admin-nav-link active" data-perm="users">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Users
       </a>
-      <a href="settings.html" class="admin-nav-link">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <a href="settings.html" class="admin-nav-link" data-perm="settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0 2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Settings
       </a>
       <a href="https://credbaba.com/blog/" target="_blank" class="admin-nav-link">
@@ -62,6 +62,11 @@
     </nav>
 
     <div class="admin-user-group">
+      <div class="admin-user-chip">
+        <span class="admin-status-dot"></span>
+        <span id="sessionUsername">Admin</span>
+        <span style="opacity: 0.6; font-size: 10px;" id="sessionRole">(Admin)</span>
+      </div>
       <button class="theme-toggle" data-theme-toggle aria-label="Toggle dark mode">
         <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
@@ -217,21 +222,23 @@
       }).join('');
 
       document.querySelectorAll('[data-toggle-status]').forEach(btn => {
-        btn.addEventListener('click', function () {
+        btn.addEventListener('click', async function () {
           const username = this.getAttribute('data-toggle-status');
           const newStatus = this.getAttribute('data-new-status');
-          CredBabaBackofficeAuth.updateUser(username, { status: newStatus });
+          this.disabled = true;
+          await CredBabaBackofficeAuth.updateUser(username, { status: newStatus });
           showToast(`User @${username} status set to ${newStatus}.`);
           renderUsers();
         });
       });
 
       document.querySelectorAll('[data-delete-user]').forEach(btn => {
-        btn.addEventListener('click', function () {
+        btn.addEventListener('click', async function () {
           const username = this.getAttribute('data-delete-user');
           if (confirm(`Are you sure you want to remove user @${username}?`)) {
-            CredBabaBackofficeAuth.deleteUser(username);
-            showToast(`User @${username} removed.`);
+            this.disabled = true;
+            await CredBabaBackofficeAuth.deleteUser(username);
+            showToast(`User @${username} removed from system.`);
             renderUsers();
           }
         });
@@ -248,23 +255,45 @@
 
     addUserForm.addEventListener('submit', async function (e) {
       e.preventDefault();
-      const res = await CredBabaBackofficeAuth.addUser({
-        username: document.getElementById('newUsername').value,
-        name: document.getElementById('newFullName').value,
-        role: document.getElementById('newRole').value,
-        password: document.getElementById('newPassword').value
-      });
+      const submitBtn = addUserForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving to cloud...';
 
-      if (res.success) {
-        showToast(res.message);
-        closeAddUser();
-        renderUsers();
-      } else {
-        showToast(res.message, 'error');
+      try {
+        const res = await CredBabaBackofficeAuth.addUser({
+          username: document.getElementById('newUsername').value,
+          name: document.getElementById('newFullName').value,
+          role: document.getElementById('newRole').value,
+          password: document.getElementById('newPassword').value
+        });
+
+        if (res.success) {
+          showToast(res.message);
+          closeAddUser();
+          renderUsers();
+        } else {
+          showToast(res.message, 'error');
+        }
+      } catch (err) {
+        showToast(err.message || 'Error saving user', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create User →';
       }
     });
 
+    // 1. Render immediately from local cache
     renderUsers();
+
+    // 2. Load fresh users list from Google Sheet Cloud DB
+    (async function syncUsersFromCloud() {
+      try {
+        await CredBabaBackofficeAuth.fetchUsers();
+        renderUsers();
+      } catch (e) {
+        console.warn('Could not sync users from cloud:', e);
+      }
+    })();
   })();
 </script>
 </body>

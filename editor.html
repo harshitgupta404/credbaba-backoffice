@@ -21,8 +21,8 @@
 <link rel="stylesheet" href="assets/css/backoffice.css">
 <script src="assets/js/backoffice-auth.js"></script>
 <script>
-  if (!CredBabaBackofficeAuth.requireAuth()) {
-    throw new Error('Unauthorized');
+  if (!CredBabaBackofficeAuth.enforcePageAccess('editor')) {
+    throw new Error('Access Denied');
   }
 </script>
 <style>
