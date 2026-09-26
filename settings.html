@@ -124,7 +124,10 @@
       <input type="url" id="syncAppsScriptUrl" class="form-input" placeholder="https://script.google.com/macros/s/.../exec" />
     </div>
 
-    <div style="text-align: right; margin-top: var(--space-4);">
+    <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-4);">
+      <button type="button" id="testSyncBtn" class="btn btn-outline" style="font-size: var(--text-xs); padding: 8px 18px;">
+        Test Connection
+      </button>
       <button type="button" id="saveSyncBtn" class="btn btn-primary" style="font-size: var(--text-xs); padding: 8px 18px;">
         Save Sync Settings
       </button>
@@ -224,6 +227,31 @@
       settings.appsScriptUrl = appsScriptInput.value.trim();
       CredBabaBlogStore.saveSettings(settings);
       showToast('Sync settings saved.');
+    });
+
+    const testSyncBtn = document.getElementById('testSyncBtn');
+    testSyncBtn.addEventListener('click', async function () {
+      const url = appsScriptInput.value.trim();
+      if (!url) {
+        showToast('Please enter a Google Apps Script Web App URL first.', 'error');
+        return;
+      }
+      try {
+        testSyncBtn.disabled = true;
+        testSyncBtn.textContent = 'Testing connection...';
+        const res = await fetch(url + '?action=getAllBlogs&_t=' + Date.now());
+        const data = await res.json();
+        if (data && data.result === 'success') {
+          showToast(`Connected successfully! Found ${data.total !== undefined ? data.total : (data.blogs ? data.blogs.length : 0)} articles in Google Sheet.`, 'success');
+        } else {
+          showToast('Connected, but received: ' + (data.message || JSON.stringify(data)), 'error');
+        }
+      } catch (err) {
+        showToast('Failed to connect: ' + err.message + '. Make sure Web App access is set to "Anyone".', 'error');
+      } finally {
+        testSyncBtn.disabled = false;
+        testSyncBtn.textContent = 'Test Connection';
+      }
     });
 
     document.getElementById('exportJsonBtn').addEventListener('click', function () {

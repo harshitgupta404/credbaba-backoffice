@@ -770,12 +770,12 @@
     saveDraftBtn.addEventListener('click', async function () {
       try {
         saveDraftBtn.disabled = true;
-        saveDraftBtn.textContent = 'Saving...';
+        saveDraftBtn.textContent = 'Saving draft...';
         const data = getBlogData('draft');
         const saved = await CredBabaBlogStore.saveBlog(data);
         currentBlogId = saved.id;
         statusSelect.value = 'draft';
-        showToast('Draft saved successfully.');
+        showToast('Draft saved successfully! (Article is hidden from public website)');
       } catch (err) {
         showToast(err.message || 'Error saving draft', 'error');
       } finally {
@@ -787,26 +787,19 @@
     publishBtn.addEventListener('click', async function () {
       try {
         publishBtn.disabled = true;
-        publishBtn.textContent = 'Saving & syncing...';
+        publishBtn.textContent = 'Publishing to website...';
         const data = getBlogData('published');
         const saved = await CredBabaBlogStore.saveBlog(data);
         currentBlogId = saved.id;
         statusSelect.value = 'published';
 
-        publishBtn.textContent = 'Deploying to Website...';
-        try {
-          const ghResult = await CredBabaBlogStore.publishToGitHub(saved);
-          showToast(ghResult.message || 'Published to website repository!', 'success');
-        } catch (ghErr) {
-          console.warn('GitHub publish note:', ghErr);
-          showToast('Article saved & synced locally.', 'info');
-        }
+        showToast('Article published successfully! Live on website instantly.', 'success');
 
         setTimeout(() => {
           window.open(`https://credbaba.com/blog/post.html?slug=${saved.slug}`, '_blank');
           publishBtn.disabled = false;
           publishBtn.textContent = 'Publish Article →';
-        }, 1000);
+        }, 800);
       } catch (err) {
         showToast(err.message || 'Error publishing blog', 'error');
         publishBtn.disabled = false;

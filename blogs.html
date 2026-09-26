@@ -275,8 +275,11 @@
 
       emptyState.style.display = 'none';
       tableBody.innerHTML = filtered.map(blog => {
-        const liveUrl = blog.url ? `https://credbaba.com/blog/${blog.url}` : `https://credbaba.com/blog/post.html?slug=${blog.slug}`;
-        const isPublished = blog.status === 'published';
+        const isPublished = (blog.status || '').toLowerCase() === 'published';
+        const liveUrl = isPublished
+          ? `https://credbaba.com/blog/post.html?slug=${blog.slug}`
+          : `https://credbaba.com/blog/post.html?slug=${blog.slug}&preview=1`;
+
         return `
           <tr>
             <td>
@@ -287,10 +290,17 @@
               <span class="badge-tag">${CredBabaBlogStore.escapeHtml(blog.category)}</span>
             </td>
             <td>
-              <span class="badge-status ${isPublished ? 'published' : 'draft'}">
-                <span class="admin-status-dot" style="background: ${isPublished ? 'var(--color-success)' : 'var(--color-gold)'}"></span>
-                ${isPublished ? 'Published' : 'Draft'}
-              </span>
+              ${!blog.isBuiltin ? `
+                <button class="badge-status-btn badge-status ${isPublished ? 'published' : 'draft'}" data-toggle-slug="${blog.slug}" title="Click to toggle between Published and Draft">
+                  <span class="admin-status-dot" style="background: ${isPublished ? 'var(--color-success)' : 'var(--color-gold)'}"></span>
+                  ${isPublished ? 'Published' : 'Draft'} ▾
+                </button>
+              ` : `
+                <span class="badge-status published">
+                  <span class="admin-status-dot" style="background: var(--color-success)"></span>
+                  Published
+                </span>
+              `}
             </td>
             <td>
               <div style="font-family: var(--font-mono); font-size: var(--text-xs); color: var(--color-ink-soft);">
@@ -303,7 +313,7 @@
                 <a href="editor.html?id=${blog.id || blog.slug}" class="btn-icon" title="Edit Article">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                 </a>
-                <a href="${liveUrl}" target="_blank" class="btn-icon" title="Preview on Website">
+                <a href="${liveUrl}" target="_blank" class="btn-icon" title="${isPublished ? 'View Live on Website' : 'Preview Draft on Website'}">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 </a>
                 <button class="btn-icon" title="Download Static HTML" data-download-slug="${blog.slug}">
@@ -319,6 +329,23 @@
           </tr>
         `;
       }).join('');
+
+      document.querySelectorAll('[data-toggle-slug]').forEach(btn => {
+        btn.addEventListener('click', async function () {
+          const slug = this.getAttribute('data-toggle-slug');
+          try {
+            this.disabled = true;
+            this.textContent = 'Updating...';
+            const updated = await CredBabaBlogStore.toggleBlogStatus(slug);
+            const isNowPub = updated.status === 'published';
+            showToast(isNowPub ? 'Article Published! Now live on website.' : 'Article moved to Draft. Removed from public website.');
+            render();
+          } catch (err) {
+            showToast(err.message || 'Could not update status.', 'error');
+            render();
+          }
+        });
+      });
 
       document.querySelectorAll('[data-download-slug]').forEach(btn => {
         btn.addEventListener('click', function () {
@@ -346,16 +373,21 @@
     }
     closeDeleteModal.addEventListener('click', closeDelete);
     cancelDeleteBtn.addEventListener('click', closeDelete);
-    confirmDeleteBtn.addEventListener('click', function () {
+    confirmDeleteBtn.addEventListener('click', async function () {
       if (pendingDeleteId) {
         try {
-          CredBabaBlogStore.deleteBlog(pendingDeleteId);
-          showToast('Article deleted successfully.');
+          confirmDeleteBtn.disabled = true;
+          confirmDeleteBtn.textContent = 'Deleting...';
+          await CredBabaBlogStore.deleteBlog(pendingDeleteId);
+          showToast('Article deleted successfully and removed from website.');
           closeDelete();
           render();
         } catch (err) {
           showToast(err.message || 'Could not delete article.', 'error');
           closeDelete();
+        } finally {
+          confirmDeleteBtn.disabled = false;
+          confirmDeleteBtn.textContent = 'Delete Article';
         }
       }
     });
@@ -364,7 +396,17 @@
     categoryFilter.addEventListener('change', render);
     statusFilter.addEventListener('change', render);
 
+    // Initial render from local cache
     render();
+
+    // Background live sync from Google Apps Script if configured
+    (async function syncWithCloud() {
+      const settings = CredBabaBlogStore.getSettings();
+      if (settings.appsScriptUrl) {
+        await CredBabaBlogStore.fetchAllBlogs();
+        render();
+      }
+    })();
   })();
 </script>
 </body>
