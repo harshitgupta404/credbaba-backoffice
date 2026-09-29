@@ -99,6 +99,7 @@
           <div class="toolbar-group">
             <select class="tool-select" id="headingSelect" title="Text format">
               <option value="p">Paragraph</option>
+              <option value="h1">Heading 1 (H1)</option>
               <option value="h2">Heading 2 (H2)</option>
               <option value="h3">Heading 3 (H3)</option>
               <option value="h4">Heading 4 (H4)</option>
@@ -502,27 +503,377 @@
       }
     });
 
-    document.querySelectorAll('.tool-btn[data-command]').forEach(btn => {
-      btn.addEventListener('click', function () {
-        const cmd = this.getAttribute('data-command');
-        document.execCommand(cmd, false, null);
-        editor.focus();
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+      btn.addEventListener('mousedown', function (e) {
+        e.preventDefault();
       });
-    });
-
-    document.getElementById('headingSelect').addEventListener('change', function () {
-      const val = this.value;
-      if (val === 'p') {
-        document.execCommand('formatBlock', false, '<p>');
-      } else {
-        document.execCommand('formatBlock', false, `<${val}>`);
+      if (btn.hasAttribute('data-command')) {
+        btn.addEventListener('click', function () {
+          const cmd = this.getAttribute('data-command');
+          document.execCommand(cmd, false, null);
+          editor.focus();
+        });
       }
-      editor.focus();
     });
 
-    document.getElementById('customBlockSelect').addEventListener('change', function () {
+    // ========================================================================
+    // BULLETPROOF BLOCK FORMATTING ENGINE (H1, H2, H3, H4, P)
+    // Preserves document hierarchy and formats only the active/selected block(s)
+    // ========================================================================
+
+    const headingSelect = document.getElementById('headingSelect');
+
+    function getClosestBlock(node) {
+      if (!node) return null;
+      let curr = node.nodeType === Node.ELEMENT_NODE ? node : node.parentNode;
+      while (curr && curr !== editor) {
+        const tag = (curr.tagName || '').toLowerCase();
+        if (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'li'].includes(tag)) {
+          return curr;
+        }
+        if (tag === 'div' && curr.parentNode === editor) {
+          return curr;
+        }
+        curr = curr.parentNode;
+      }
+      return null;
+    }
+
+    function normalizeEditorChildren() {
+      if (!editor) return;
+
+      if (!editor.innerHTML || editor.innerHTML.trim() === '' || editor.innerHTML === '<br>') {
+        editor.innerHTML = '<p><br></p>';
+        return;
+      }
+
+      const childNodes = Array.from(editor.childNodes);
+      let orphanGroup = [];
+
+      function flushOrphans() {
+        if (orphanGroup.length === 0) return;
+        const p = document.createElement('p');
+        editor.insertBefore(p, orphanGroup[0]);
+        orphanGroup.forEach(node => p.appendChild(node));
+        orphanGroup = [];
+      }
+
+      childNodes.forEach(child => {
+        if (child.nodeType === Node.TEXT_NODE) {
+          if (child.textContent.trim().length > 0) {
+            orphanGroup.push(child);
+          } else {
+            child.remove();
+          }
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          const tag = child.tagName.toLowerCase();
+          const isBlock = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'ul', 'ol', 'div', 'figure', 'table', 'hr', 'pre'].includes(tag);
+          if (!isBlock) {
+            orphanGroup.push(child);
+          } else {
+            flushOrphans();
+            if (tag === 'div' && !child.className && !child.id) {
+              const p = document.createElement('p');
+              p.innerHTML = child.innerHTML || '<br>';
+              editor.replaceChild(p, child);
+            }
+          }
+        }
+      });
+
+      flushOrphans();
+
+      if (!editor.firstElementChild) {
+        editor.innerHTML = '<p><br></p>';
+      }
+    }
+
+    function getCaretOffsetWithin(element) {
+      let caretOffset = 0;
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        try {
+          const range = sel.getRangeAt(0);
+          const preCaretRange = range.cloneRange();
+          preCaretRange.selectNodeContents(element);
+          preCaretRange.setEnd(range.endContainer, range.endOffset);
+          caretOffset = preCaretRange.toString().length;
+        } catch (e) {
+          caretOffset = 0;
+        }
+      }
+      return caretOffset;
+    }
+
+    function setCaretOffsetWithin(element, offset) {
+      const range = document.createRange();
+      const sel = window.getSelection();
+      let currentOffset = 0;
+      let found = false;
+
+      function traverse(node) {
+        if (found) return;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const nextOffset = currentOffset + node.length;
+          if (offset >= currentOffset && offset <= nextOffset) {
+            range.setStart(node, Math.min(offset - currentOffset, node.length));
+            range.collapse(true);
+            found = true;
+            return;
+          }
+          currentOffset = nextOffset;
+        } else {
+          for (let i = 0; i < node.childNodes.length; i++) {
+            traverse(node.childNodes[i]);
+            if (found) return;
+          }
+        }
+      }
+
+      traverse(element);
+
+      if (!found) {
+        range.selectNodeContents(element);
+        range.collapse(false);
+      }
+
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    function setBlockFormat(targetTag) {
+      targetTag = targetTag.toLowerCase();
+      editor.focus();
+
+      if (savedSelection) {
+        restoreSelection();
+      }
+
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+
+      const range = sel.getRangeAt(0);
+      if (!editor.contains(range.commonAncestorContainer)) return;
+
+      normalizeEditorChildren();
+
+      let startBlock = getClosestBlock(range.startContainer);
+      let endBlock = getClosestBlock(range.endContainer);
+
+      if (!startBlock) startBlock = editor.firstElementChild;
+      if (!endBlock) endBlock = startBlock;
+
+      if (!startBlock) {
+        editor.innerHTML = '<' + targetTag + '><br></' + targetTag + '>';
+        setCaretOffsetWithin(editor.firstElementChild, 0);
+        saveSelection();
+        updateHeadingSelect();
+        return;
+      }
+
+      // Single block formatting (cursor placed in a line or word)
+      if (startBlock === endBlock) {
+        if (startBlock.classList && (startBlock.classList.contains('summary-box') || startBlock.classList.contains('blog-cta') || startBlock.classList.contains('blog-intro'))) {
+          return;
+        }
+
+        const isCollapsed = range.collapsed;
+        const caretOffset = isCollapsed ? getCaretOffsetWithin(startBlock) : 0;
+
+        if (startBlock.tagName.toLowerCase() === targetTag) {
+          updateHeadingSelect();
+          return;
+        }
+
+        const newEl = document.createElement(targetTag);
+        newEl.innerHTML = startBlock.innerHTML;
+        if (!newEl.innerHTML || newEl.innerHTML.trim() === '') {
+          newEl.innerHTML = '<br>';
+        }
+
+        startBlock.parentNode.replaceChild(newEl, startBlock);
+
+        if (isCollapsed) {
+          setCaretOffsetWithin(newEl, caretOffset);
+        } else {
+          const newRange = document.createRange();
+          newRange.selectNodeContents(newEl);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+        }
+
+        saveSelection();
+        updateHeadingSelect();
+        updateReadTime();
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+
+      // Multiple blocks selection
+      let topStart = startBlock;
+      while (topStart && topStart.parentNode !== editor) {
+        topStart = topStart.parentNode;
+      }
+      let topEnd = endBlock;
+      while (topEnd && topEnd.parentNode !== editor) {
+        topEnd = topEnd.parentNode;
+      }
+
+      if (!topStart || !topEnd) return;
+
+      const blocksToReplace = [];
+      let curr = topStart;
+      while (curr) {
+        if (curr.nodeType === Node.ELEMENT_NODE) {
+          const t = curr.tagName.toLowerCase();
+          if (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'].includes(t) || (t === 'div' && !curr.className)) {
+            blocksToReplace.push(curr);
+          }
+        }
+        if (curr === topEnd) break;
+        curr = curr.nextSibling;
+      }
+
+      const newEls = [];
+      blocksToReplace.forEach(b => {
+        if (b.tagName.toLowerCase() === targetTag) {
+          newEls.push(b);
+          return;
+        }
+        const newEl = document.createElement(targetTag);
+        newEl.innerHTML = b.innerHTML || '<br>';
+        b.parentNode.replaceChild(newEl, b);
+        newEls.push(newEl);
+      });
+
+      if (newEls.length > 0) {
+        const newRange = document.createRange();
+        newRange.setStartBefore(newEls[0]);
+        newRange.setEndAfter(newEls[newEls.length - 1]);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+      }
+
+      saveSelection();
+      updateHeadingSelect();
+      updateReadTime();
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    function updateHeadingSelect() {
+      if (!headingSelect) return;
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+
+      try {
+        const range = sel.getRangeAt(0);
+        if (!editor.contains(range.commonAncestorContainer)) return;
+
+        const block = getClosestBlock(range.startContainer);
+        if (block) {
+          const tag = block.tagName.toLowerCase();
+          if (['p', 'h1', 'h2', 'h3', 'h4'].includes(tag)) {
+            headingSelect.value = tag;
+          } else {
+            headingSelect.value = 'p';
+          }
+        }
+      } catch (e) {}
+    }
+
+    function recordEditorSelection() {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        try {
+          const range = sel.getRangeAt(0);
+          if (editor.contains(range.commonAncestorContainer)) {
+            savedSelection = range.cloneRange();
+            updateHeadingSelect();
+          }
+        } catch (e) {}
+      }
+    }
+
+    editor.addEventListener('keyup', recordEditorSelection);
+    editor.addEventListener('mouseup', recordEditorSelection);
+    editor.addEventListener('click', recordEditorSelection);
+    document.addEventListener('selectionchange', () => {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        try {
+          if (editor.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+            savedSelection = sel.getRangeAt(0).cloneRange();
+            updateHeadingSelect();
+          }
+        } catch (e) {}
+      }
+    });
+
+    headingSelect.addEventListener('mousedown', recordEditorSelection);
+    headingSelect.addEventListener('focus', recordEditorSelection);
+    headingSelect.addEventListener('change', function () {
       const val = this.value;
       if (!val) return;
+      setBlockFormat(val);
+    });
+
+    // Enter key handling on headings: hit Enter at the end of a heading to start a paragraph
+    editor.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          const block = getClosestBlock(range.startContainer);
+          if (block && ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(block.tagName.toLowerCase())) {
+            const textLen = (block.textContent || '').length;
+            const caret = getCaretOffsetWithin(block);
+            if (caret >= textLen) {
+              e.preventDefault();
+              const p = document.createElement('p');
+              p.innerHTML = '<br>';
+              if (block.nextSibling) {
+                editor.insertBefore(p, block.nextSibling);
+              } else {
+                editor.appendChild(p);
+              }
+              const newRange = document.createRange();
+              newRange.setStart(p, 0);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+              saveSelection();
+              updateHeadingSelect();
+              return;
+            }
+          }
+        }
+      }
+    });
+
+    // Normalize loose elements after paste
+    editor.addEventListener('paste', function () {
+      setTimeout(() => {
+        normalizeEditorChildren();
+        recordEditorSelection();
+        updateReadTime();
+      }, 0);
+    });
+
+    try {
+      document.execCommand('defaultParagraphSeparator', false, 'p');
+    } catch (e) {}
+    normalizeEditorChildren();
+
+    const customBlockSelect = document.getElementById('customBlockSelect');
+    customBlockSelect.addEventListener('mousedown', recordEditorSelection);
+    customBlockSelect.addEventListener('focus', recordEditorSelection);
+    customBlockSelect.addEventListener('change', function () {
+      const val = this.value;
+      if (!val) return;
+      editor.focus();
+      if (savedSelection) {
+        restoreSelection();
+      }
 
       let html = '';
       if (val === 'summary') {
@@ -882,7 +1233,8 @@
         excerptInput.value = blog.excerpt || '';
         metaDescInput.value = blog.metaDescription || '';
         metaDescCount.textContent = `${metaDescInput.value.length} / 160`;
-        editor.innerHTML = blog.content || '';
+        editor.innerHTML = blog.content || '<p><br></p>';
+        normalizeEditorChildren();
 
         if (blog.heroImage) {
           currentHeroDataUrl = blog.heroImage;
@@ -894,6 +1246,9 @@
           blog.faqs.forEach(f => addFaqItem(f.q, f.a));
         }
       }
+    } else {
+      editor.innerHTML = '<p><br></p>';
+      normalizeEditorChildren();
     }
   })();
 </script>
