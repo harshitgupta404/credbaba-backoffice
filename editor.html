@@ -1170,6 +1170,14 @@
     }
 
     saveDraftBtn.addEventListener('click', async function () {
+      if (document.getElementById('editorCloudLoader')) {
+        showToast('Please wait for article content to finish loading from cloud.', 'error');
+        return;
+      }
+      if (!editor.innerText.trim()) {
+        showToast('Article content cannot be empty.', 'error');
+        return;
+      }
       try {
         saveDraftBtn.disabled = true;
         saveDraftBtn.textContent = 'Saving draft...';
@@ -1191,6 +1199,14 @@
     });
 
     publishBtn.addEventListener('click', async function () {
+      if (document.getElementById('editorCloudLoader')) {
+        showToast('Please wait for article content to finish loading from cloud.', 'error');
+        return;
+      }
+      if (!editor.innerText.trim()) {
+        showToast('Article content cannot be empty.', 'error');
+        return;
+      }
       try {
         publishBtn.disabled = true;
         publishBtn.textContent = 'Publishing to website...';
