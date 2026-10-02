@@ -1276,39 +1276,99 @@
 
     closePreviewModal.addEventListener('click', () => previewModal.classList.remove('show'));
 
-    if (blogIdOrSlug) {
-      const blog = CredBabaBlogStore.getBlogBySlug(blogIdOrSlug);
-      if (blog) {
-        currentBlogId = blog.id;
-        titleInput.value = blog.title || '';
-        slugInput.value = blog.slug || '';
-        slugPreview.textContent = blog.slug || '...';
+    function populateEditorForm(blog) {
+      if (!blog) return;
+      currentBlogId = blog.id || currentBlogId;
+      if (blog.title) titleInput.value = blog.title;
+      if (blog.slug) {
+        slugInput.value = blog.slug;
+        slugPreview.textContent = blog.slug;
         isSlugManual = true;
-        categorySelect.value = blog.category || 'Loan Guide';
-        authorInput.value = blog.author || 'CredBaba Editorial Team';
-        if (blog.publishedAt) dateInput.value = blog.publishedAt;
-        readTimeInput.value = blog.readTime || '';
-        statusSelect.value = blog.status || 'published';
-        excerptInput.value = blog.excerpt || '';
-        metaDescInput.value = blog.metaDescription || '';
+      }
+      if (blog.category) categorySelect.value = blog.category;
+      if (blog.author) authorInput.value = blog.author;
+      if (blog.publishedAt) dateInput.value = blog.publishedAt;
+      if (blog.readTime) readTimeInput.value = blog.readTime;
+      if (blog.status) statusSelect.value = blog.status;
+      if (blog.excerpt) excerptInput.value = blog.excerpt;
+      if (blog.metaDescription) {
+        metaDescInput.value = blog.metaDescription;
         metaDescCount.textContent = `${metaDescInput.value.length} / 160`;
-        editor.innerHTML = blog.content || '<p><br></p>';
+      }
+
+      if (blog.heroImage) {
+        currentHeroDataUrl = blog.heroImage;
+        heroPreviewImg.src = blog.heroImage;
+        heroPreviewWrap.style.display = 'block';
+      }
+
+      if (Array.isArray(blog.faqs) && blog.faqs.length > 0) {
+        faqList.innerHTML = '';
+        blog.faqs.forEach(f => addFaqItem(f.q, f.a));
+      }
+    }
+
+    async function initEditorContent() {
+      if (!blogIdOrSlug) {
+        editor.innerHTML = '<p><br></p>';
         normalizeEditorChildren();
+        return;
+      }
 
-        if (blog.heroImage) {
-          currentHeroDataUrl = blog.heroImage;
-          heroPreviewImg.src = blog.heroImage;
-          heroPreviewWrap.style.display = 'block';
-        }
-
-        if (Array.isArray(blog.faqs)) {
-          blog.faqs.forEach(f => addFaqItem(f.q, f.a));
+      // Step 1: Immediately populate from local cache if available (0ms instant display)
+      const localBlog = CredBabaBlogStore.getBlogBySlug(blogIdOrSlug);
+      if (localBlog) {
+        populateEditorForm(localBlog);
+        if (localBlog.content && localBlog.content.trim()) {
+          editor.innerHTML = localBlog.content;
+          normalizeEditorChildren();
         }
       }
-    } else {
-      editor.innerHTML = '<p><br></p>';
-      normalizeEditorChildren();
+
+      // Step 2: If article was not found locally, OR if its content is empty (e.g. from lightweight list),
+      // asynchronously fetch the full article with content & FAQs from Google Sheets cloud
+      const hasContent = localBlog && localBlog.content && localBlog.content.trim();
+      if (!hasContent) {
+        editor.innerHTML = `
+          <div id="editorCloudLoader" style="padding: 48px 24px; text-align: center; color: var(--color-ink-faint); user-select: none;">
+            <div style="font-size: 15px; font-weight: 600; color: var(--color-indigo); margin-bottom: 6px;">Loading article from cloud...</div>
+            <div style="font-size: 12px; opacity: 0.8;">Retrieving complete HTML & FAQs from Google Sheets</div>
+          </div>
+        `;
+
+        try {
+          const freshBlog = await CredBabaBlogStore.fetchBlogBySlug(blogIdOrSlug, {
+            includeDraft: true,
+            skipLocal: true
+          });
+
+          if (freshBlog) {
+            populateEditorForm(freshBlog);
+            if (freshBlog.content && freshBlog.content.trim()) {
+              editor.innerHTML = freshBlog.content;
+            } else {
+              editor.innerHTML = '<p><br></p>';
+            }
+            normalizeEditorChildren();
+          } else {
+            const loader = document.getElementById('editorCloudLoader');
+            if (loader) {
+              editor.innerHTML = '<p><br></p>';
+              normalizeEditorChildren();
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to fetch full blog content:', err);
+          const loader = document.getElementById('editorCloudLoader');
+          if (loader) {
+            editor.innerHTML = '<p><br></p>';
+            normalizeEditorChildren();
+          }
+        }
+      }
     }
+
+    initEditorContent();
   
     // Cloud Status Checking in Editor
     const cloudStatusBtn = document.getElementById("cloudStatusBtn");
