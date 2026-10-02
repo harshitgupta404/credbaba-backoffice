@@ -62,6 +62,10 @@
     </nav>
 
     <div class="admin-user-group">
+      <button type="button" id="cloudStatusBtn" class="cloud-status-pill checking" title="Cloud Database Connection Status">
+        <span class="cloud-status-dot"></span>
+        <span class="cloud-status-text">Checking Cloud...</span>
+      </button>
       <div class="admin-user-chip">
         <span class="admin-status-dot"></span>
         <span id="sessionUsername">Admin</span>
@@ -129,6 +133,13 @@
       <input type="url" id="syncAppsScriptUrl" class="form-input" placeholder="https://script.google.com/macros/s/.../exec" />
     </div>
 
+    <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-top: var(--space-4); font-size: var(--text-xs); line-height: 1.6;">
+      <div style="font-weight: 600; color: var(--color-ink); margin-bottom: 4px;">⚡ How to avoid HTTP 403 Forbidden errors across devices:</div>
+      <p style="margin: 0; color: var(--color-ink-soft);">
+        When deploying the Web App in Google Sheets (<strong>Extensions &gt; Apps Script &gt; Deploy &gt; Manage deployments</strong>), you MUST set <strong>"Who has access"</strong> to <strong style="color: var(--color-indigo);">Anyone</strong>. If left as "Only myself", team members on different laptops or browsers will get 403 errors and only see 3 hardcoded articles.
+      </p>
+    </div>
+
     <div style="display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-4);">
       <button type="button" id="testSyncBtn" class="btn btn-outline" style="font-size: var(--text-xs); padding: 8px 18px;">
         Test Connection
@@ -155,6 +166,15 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         Import Articles from JSON
         <input type="file" id="importJsonInput" accept=".json" style="display: none;" />
+      </label>
+      <button type="button" id="exportUsersJsonBtn" class="btn btn-outline" style="font-size: var(--text-xs);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        Export Users as JSON
+      </button>
+      <label class="btn btn-outline" style="font-size: var(--text-xs); cursor: pointer;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Import Users from JSON
+        <input type="file" id="importUsersJsonInput" accept=".json" style="display: none;" />
       </label>
     </div>
   </div>
@@ -244,12 +264,16 @@
       try {
         testSyncBtn.disabled = true;
         testSyncBtn.textContent = 'Testing connection...';
-        const res = await fetch(url + '?action=getAllBlogs&_t=' + Date.now());
-        const data = await res.json();
-        if (data && data.result === 'success') {
-          showToast(`Connected successfully! Found ${data.total !== undefined ? data.total : (data.blogs ? data.blogs.length : 0)} articles in Google Sheet.`, 'success');
+        const res = await CredBabaBlogStore.testCloudConnection(url);
+        if (res.ok) {
+          showToast(res.message, 'success');
+          updateCloudStatus(true, res.message);
+        } else if (res.status === 403) {
+          showToast('HTTP 403 Forbidden: Google Apps Script Web App must be set to "Who has access: Anyone".', 'error');
+          updateCloudStatus(false, '403 Forbidden');
         } else {
-          showToast('Connected, but received: ' + (data.message || JSON.stringify(data)), 'error');
+          showToast(res.message, 'error');
+          updateCloudStatus(false, res.message);
         }
       } catch (err) {
         showToast('Failed to connect: ' + err.message + '. Make sure Web App access is set to "Anyone".', 'error');
@@ -258,6 +282,54 @@
         testSyncBtn.textContent = 'Test Connection';
       }
     });
+
+    // Cloud status indicator
+    const cloudStatusBtn = document.getElementById("cloudStatusBtn");
+    function updateCloudStatus(isOnline, text) {
+      if (!cloudStatusBtn) return;
+      if (isOnline) {
+        cloudStatusBtn.className = "cloud-status-pill online";
+        cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Cloud Synced";
+      } else if (text && text.includes("403")) {
+        cloudStatusBtn.className = "cloud-status-pill forbidden";
+        cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Cloud 403 Forbidden";
+      } else {
+        cloudStatusBtn.className = "cloud-status-pill offline";
+        cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Cloud Offline";
+      }
+    }
+
+    (async function checkInitialCloud() {
+      const res = await CredBabaBlogStore.testCloudConnection();
+      updateCloudStatus(res.ok, res.message);
+    })();
+
+    // User Export & Import
+    const exportUsersJsonBtn = document.getElementById("exportUsersJsonBtn");
+    if (exportUsersJsonBtn) {
+      exportUsersJsonBtn.addEventListener("click", function () {
+        CredBabaBackofficeAuth.exportUsersJson();
+        showToast("Exported user accounts JSON.");
+      });
+    }
+
+    const importUsersJsonInput = document.getElementById("importUsersJsonInput");
+    if (importUsersJsonInput) {
+      importUsersJsonInput.addEventListener("change", function () {
+        const file = this.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async function (e) {
+          try {
+            const res = await CredBabaBackofficeAuth.importUsersJson(e.target.result);
+            showToast(`Successfully imported ${res.importedCount} user accounts.`, "success");
+          } catch (err) {
+            showToast("Failed to import users: " + err.message, "error");
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
 
     document.getElementById('exportJsonBtn').addEventListener('click', function () {
       const blogs = CredBabaBlogStore.getAllBlogs();

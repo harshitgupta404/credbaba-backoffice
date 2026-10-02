@@ -6,6 +6,53 @@
     var t = localStorage.getItem('credbaba-theme');
     if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', t);
+  
+    // Cloud Status Checking in Editor
+    const cloudStatusBtn = document.getElementById("cloudStatusBtn");
+    const cloudHelpModal = document.getElementById("cloudHelpModal");
+    const closeCloudHelpBtn = document.getElementById("closeCloudHelpBtn");
+    const recheckCloudBtn = document.getElementById("recheckCloudBtn");
+
+    function openCloudHelp() {
+      if (cloudHelpModal) cloudHelpModal.classList.add("show");
+    }
+    function closeCloudHelp() {
+      if (cloudHelpModal) cloudHelpModal.classList.remove("show");
+    }
+
+    if (cloudStatusBtn) cloudStatusBtn.addEventListener("click", openCloudHelp);
+    if (closeCloudHelpBtn) closeCloudHelpBtn.addEventListener("click", closeCloudHelp);
+
+    if (recheckCloudBtn) {
+      recheckCloudBtn.addEventListener("click", async function () {
+        recheckCloudBtn.disabled = true;
+        recheckCloudBtn.textContent = "Checking...";
+        await checkCloudSync();
+        recheckCloudBtn.disabled = false;
+        recheckCloudBtn.textContent = "Re-check Cloud Connection";
+      });
+    }
+
+    async function checkCloudSync() {
+      if (!cloudStatusBtn) return;
+      cloudStatusBtn.className = "cloud-status-pill checking";
+      cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Checking Cloud...";
+
+      const check = await CredBabaBlogStore.testCloudConnection();
+      if (check.ok) {
+        cloudStatusBtn.className = "cloud-status-pill online";
+        cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Cloud Synced";
+      } else if (check.status === 403) {
+        cloudStatusBtn.className = "cloud-status-pill forbidden";
+        cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Cloud 403 Forbidden";
+      } else {
+        cloudStatusBtn.className = "cloud-status-pill offline";
+        cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Cloud Offline";
+      }
+    }
+
+    checkCloudSync();
+
   })();
 </script>
 <meta charset="UTF-8">
@@ -46,6 +93,10 @@
     </div>
 
     <div class="editor-top-actions">
+      <button type="button" id="cloudStatusBtn" class="cloud-status-pill checking" title="Cloud Database Connection Status">
+        <span class="cloud-status-dot"></span>
+        <span class="cloud-status-text">Checking Cloud...</span>
+      </button>
       <a href="blogs.html" class="btn btn-outline" style="font-size: var(--text-xs); padding: 8px 14px;">
         ← Back to Articles
       </a>
@@ -1126,7 +1177,11 @@
         const saved = await CredBabaBlogStore.saveBlog(data);
         currentBlogId = saved.id;
         statusSelect.value = 'draft';
-        showToast('Draft saved successfully! (Article is hidden from public website)');
+        if (saved._cloudSynced) {
+          showToast('Draft saved & synced to Google Sheets cloud!', 'success');
+        } else {
+          showToast('⚠️ Saved locally on this computer, but Cloud sync failed (' + (saved._cloudError || '403 Forbidden') + '). Set "Who has access: Anyone" in Apps Script to sync across devices.', 'error');
+        }
       } catch (err) {
         showToast(err.message || 'Error saving draft', 'error');
       } finally {
@@ -1144,7 +1199,11 @@
         currentBlogId = saved.id;
         statusSelect.value = 'published';
 
-        showToast('Article published successfully! Live on website instantly.', 'success');
+        if (saved._cloudSynced) {
+          showToast('Article published & synced to Google Sheets cloud! Live on website.', 'success');
+        } else {
+          showToast('⚠️ Article published locally, but Cloud sync failed (' + (saved._cloudError || '403 Forbidden') + '). Set "Who has access: Anyone" in Apps Script to sync across devices.', 'error');
+        }
 
         setTimeout(() => {
           window.open(`https://credbaba.com/blog/${saved.slug}`, '_blank');
@@ -1250,7 +1309,87 @@
       editor.innerHTML = '<p><br></p>';
       normalizeEditorChildren();
     }
+  
+    // Cloud Status Checking in Editor
+    const cloudStatusBtn = document.getElementById("cloudStatusBtn");
+    const cloudHelpModal = document.getElementById("cloudHelpModal");
+    const closeCloudHelpBtn = document.getElementById("closeCloudHelpBtn");
+    const recheckCloudBtn = document.getElementById("recheckCloudBtn");
+
+    function openCloudHelp() {
+      if (cloudHelpModal) cloudHelpModal.classList.add("show");
+    }
+    function closeCloudHelp() {
+      if (cloudHelpModal) cloudHelpModal.classList.remove("show");
+    }
+
+    if (cloudStatusBtn) cloudStatusBtn.addEventListener("click", openCloudHelp);
+    if (closeCloudHelpBtn) closeCloudHelpBtn.addEventListener("click", closeCloudHelp);
+
+    if (recheckCloudBtn) {
+      recheckCloudBtn.addEventListener("click", async function () {
+        recheckCloudBtn.disabled = true;
+        recheckCloudBtn.textContent = "Checking...";
+        await checkCloudSync();
+        recheckCloudBtn.disabled = false;
+        recheckCloudBtn.textContent = "Re-check Cloud Connection";
+      });
+    }
+
+    async function checkCloudSync() {
+      if (!cloudStatusBtn) return;
+      cloudStatusBtn.className = "cloud-status-pill checking";
+      cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Checking Cloud...";
+
+      const check = await CredBabaBlogStore.testCloudConnection();
+      if (check.ok) {
+        cloudStatusBtn.className = "cloud-status-pill online";
+        cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Cloud Synced";
+      } else if (check.status === 403) {
+        cloudStatusBtn.className = "cloud-status-pill forbidden";
+        cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Cloud 403 Forbidden";
+      } else {
+        cloudStatusBtn.className = "cloud-status-pill offline";
+        cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Cloud Offline";
+      }
+    }
+
+    checkCloudSync();
+
   })();
 </script>
+
+<!-- Cloud Setup & Fix Modal -->
+<div class="modal-overlay" id="cloudHelpModal">
+  <div class="modal-box" style="max-width: 580px;">
+    <h3 style="color: var(--color-ink); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-gold)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Google Sheets Multi-Device Setup Guide
+    </h3>
+    <p style="font-size: var(--text-xs); color: var(--color-ink-soft); margin-bottom: var(--space-4);">
+      To allow articles to sync seamlessly across different laptops, phones, and team members without 403 Forbidden errors, ensure your Google Apps Script Web App has public permissions.
+    </p>
+
+    <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4); font-size: var(--text-xs); line-height: 1.6;">
+      <div style="font-weight: 600; color: var(--color-ink); margin-bottom: 6px;">How to enable multi-device sync in 1 minute:</div>
+      <ol style="padding-left: 18px; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+        <li>Open your Google Sheet (e.g. <em>CredBaba Blogs</em>).</li>
+        <li>Click <strong>Extensions &gt; Apps Script</strong> from the top menu.</li>
+        <li>Make sure the latest code from <code>apps-script/blog-script.gs</code> is pasted and saved.</li>
+        <li>Click <strong>Deploy</strong> (top right) &rarr; <strong>Manage deployments</strong>.</li>
+        <li>Click the ✏️ <strong>Edit</strong> icon next to the active Web App.</li>
+        <li>Set <strong>Version:</strong> <code>New version</code>.</li>
+        <li>Set <strong>Who has access:</strong> <strong style="color: var(--color-indigo); background: var(--color-indigo-soft); padding: 1px 6px; border-radius: 4px;">Anyone</strong> <em>(Not "Only myself")</em>.</li>
+        <li>Click <strong>Deploy</strong>. Copy the URL and verify it in Backoffice Settings.</li>
+      </ol>
+    </div>
+
+    <div style="display: flex; gap: var(--space-3); justify-content: flex-end;">
+      <button type="button" class="btn btn-outline" id="closeCloudHelpBtn">Close</button>
+      <button type="button" class="btn btn-primary" id="recheckCloudBtn">Re-check Cloud Connection</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

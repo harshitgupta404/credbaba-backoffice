@@ -62,6 +62,10 @@
     </nav>
 
     <div class="admin-user-group">
+      <button type="button" id="cloudStatusBtn" class="cloud-status-pill checking" title="Cloud Database Connection Status">
+        <span class="cloud-status-dot"></span>
+        <span class="cloud-status-text">Checking Cloud...</span>
+      </button>
       <div class="admin-user-chip">
         <span class="admin-status-dot"></span>
         <span id="sessionUsername">Admin</span>
@@ -85,9 +89,31 @@
       <h1 style="font-size: var(--text-2xl); font-family: var(--font-display); margin-bottom: 4px;">Backoffice Users</h1>
       <p style="color: var(--color-ink-soft); font-size: var(--text-sm);">Manage team access, marketing permissions, and administrative roles.</p>
     </div>
-    <button type="button" id="openAddUserBtn" class="btn btn-primary" style="font-size: var(--text-xs); padding: 9px 18px;">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-      Add New Backoffice User
+    <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center;">
+      <button type="button" id="exportUsersBtn" class="btn btn-outline" style="font-size: var(--text-xs); padding: 8px 14px;" title="Export user accounts as portable JSON file">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export Users
+      </button>
+      <label class="btn btn-outline" style="font-size: var(--text-xs); padding: 8px 14px; cursor: pointer; margin: 0; display: inline-flex; align-items: center; gap: 6px;" title="Import user accounts from another machine or JSON backup">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Import Users
+        <input type="file" id="importUsersInput" accept=".json" style="display: none;" />
+      </label>
+      <button type="button" id="openAddUserBtn" class="btn btn-primary" style="font-size: var(--text-xs); padding: 9px 18px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        Add New Backoffice User
+      </button>
+    </div>
+  </div>
+
+  <!-- Cloud User Sync Warning Banner -->
+  <div id="cloudWarningBanner" style="display: none; background: rgba(239, 68, 68, 0.08); border: 1px solid var(--color-error); color: var(--color-error); padding: 12px 16px; border-radius: var(--radius-md); margin-bottom: var(--space-4); font-size: var(--text-xs); line-height: 1.5; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+    <div>
+      <strong>⚠️ Cloud User Database Offline (HTTP 403 Forbidden):</strong>
+      Google Sheets is currently blocking cross-device requests. Users created on other devices cannot be seen here until permissions are set to "Anyone" in Google Sheets.
+    </div>
+    <button type="button" id="openCloudHelpBtn" class="btn btn-outline" style="color: var(--color-error); border-color: var(--color-error); font-size: 11px; padding: 4px 10px;">
+      How to Fix in 1 Minute →
     </button>
   </div>
 
@@ -282,19 +308,128 @@
       }
     });
 
+    // Cloud status UI elements & handlers
+    const cloudStatusBtn = document.getElementById("cloudStatusBtn");
+    const cloudWarningBanner = document.getElementById("cloudWarningBanner");
+    const cloudHelpModal = document.getElementById("cloudHelpModal");
+    const openCloudHelpBtn = document.getElementById("openCloudHelpBtn");
+    const closeCloudHelpBtn = document.getElementById("closeCloudHelpBtn");
+    const recheckCloudBtn = document.getElementById("recheckCloudBtn");
+    const exportUsersBtn = document.getElementById("exportUsersBtn");
+    const importUsersInput = document.getElementById("importUsersInput");
+
+    function openCloudHelp() {
+      if (cloudHelpModal) cloudHelpModal.classList.add("show");
+    }
+    function closeCloudHelp() {
+      if (cloudHelpModal) cloudHelpModal.classList.remove("show");
+    }
+
+    if (cloudStatusBtn) cloudStatusBtn.addEventListener("click", openCloudHelp);
+    if (openCloudHelpBtn) openCloudHelpBtn.addEventListener("click", openCloudHelp);
+    if (closeCloudHelpBtn) closeCloudHelpBtn.addEventListener("click", closeCloudHelp);
+
+    if (recheckCloudBtn) {
+      recheckCloudBtn.addEventListener("click", async function () {
+        recheckCloudBtn.disabled = true;
+        recheckCloudBtn.textContent = "Checking...";
+        await checkCloudSync();
+        recheckCloudBtn.disabled = false;
+        recheckCloudBtn.textContent = "Re-check Cloud Connection";
+      });
+    }
+
+    if (exportUsersBtn) {
+      exportUsersBtn.addEventListener("click", function () {
+        CredBabaBackofficeAuth.exportUsersJson();
+        showToast("Exported users list as JSON file.");
+      });
+    }
+
+    if (importUsersInput) {
+      importUsersInput.addEventListener("change", function () {
+        const file = this.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async function (e) {
+          try {
+            const res = await CredBabaBackofficeAuth.importUsersJson(e.target.result);
+            showToast(`Imported ${res.importedCount} users successfully!`, "success");
+            renderUsers();
+          } catch (err) {
+            showToast(err.message, "error");
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
+
+    async function checkCloudSync() {
+      if (!cloudStatusBtn) return;
+      cloudStatusBtn.className = "cloud-status-pill checking";
+      cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Checking Cloud...";
+
+      const check = await CredBabaBlogStore.testCloudConnection();
+      if (check.ok) {
+        cloudStatusBtn.className = "cloud-status-pill online";
+        cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Cloud Synced";
+        if (cloudWarningBanner) cloudWarningBanner.style.display = "none";
+        await CredBabaBackofficeAuth.fetchUsers();
+        renderUsers();
+      } else if (check.status === 403) {
+        cloudStatusBtn.className = "cloud-status-pill forbidden";
+        cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Cloud 403 Forbidden";
+        if (cloudWarningBanner) cloudWarningBanner.style.display = "flex";
+      } else {
+        cloudStatusBtn.className = "cloud-status-pill offline";
+        cloudStatusBtn.querySelector(".cloud-status-text").textContent = "Cloud Offline";
+        if (cloudWarningBanner) cloudWarningBanner.style.display = "flex";
+      }
+    }
+
     // 1. Render immediately from local cache
     renderUsers();
 
-    // 2. Load fresh users list from Google Sheet Cloud DB
-    (async function syncUsersFromCloud() {
-      try {
-        await CredBabaBackofficeAuth.fetchUsers();
-        renderUsers();
-      } catch (e) {
-        console.warn('Could not sync users from cloud:', e);
-      }
-    })();
+    // 2. Check cloud and load latest users
+    checkCloudSync();
   })();
 </script>
+
+<!-- Cloud Setup & Fix Modal -->
+<div class="modal-overlay" id="cloudHelpModal">
+  <div class="modal-box" style="max-width: 580px;">
+    <h3 style="color: var(--color-ink); margin-bottom: var(--space-2); display: flex; align-items: center; gap: 8px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-gold)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Google Sheets Multi-Device Setup Guide
+    </h3>
+    <p style="font-size: var(--text-xs); color: var(--color-ink-soft); margin-bottom: var(--space-4);">
+      To allow users and articles to sync seamlessly across different laptops, phones, and team members without 403 Forbidden errors, ensure your Google Apps Script Web App has public permissions.
+    </p>
+
+    <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4); font-size: var(--text-xs); line-height: 1.6;">
+      <div style="font-weight: 600; color: var(--color-ink); margin-bottom: 6px;">How to enable multi-device sync in 1 minute:</div>
+      <ol style="padding-left: 18px; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+        <li>Open your Google Sheet (e.g. <em>CredBaba Blogs</em>).</li>
+        <li>Click <strong>Extensions &gt; Apps Script</strong> from the top menu.</li>
+        <li>Make sure the latest code from <code>apps-script/blog-script.gs</code> is pasted and saved.</li>
+        <li>Click <strong>Deploy</strong> (top right) &rarr; <strong>Manage deployments</strong>.</li>
+        <li>Click the ✏️ <strong>Edit</strong> icon next to the active Web App.</li>
+        <li>Set <strong>Version:</strong> <code>New version</code>.</li>
+        <li>Set <strong>Who has access:</strong> <strong style="color: var(--color-indigo); background: var(--color-indigo-soft); padding: 1px 6px; border-radius: 4px;">Anyone</strong> <em>(Not "Only myself")</em>.</li>
+        <li>Click <strong>Deploy</strong>. Copy the URL and verify it in Backoffice Settings.</li>
+      </ol>
+    </div>
+
+    <div style="font-size: 11px; color: var(--color-ink-faint); margin-bottom: var(--space-5);">
+      💡 <strong>Instant Workaround:</strong> If you are switching devices right now, click <strong>"Export Users"</strong> on your previous device, and then <strong>"Import Users"</strong> here to instantly transfer all users without waiting!
+    </div>
+
+    <div style="display: flex; gap: var(--space-3); justify-content: flex-end;">
+      <button type="button" class="btn btn-outline" id="closeCloudHelpBtn">Close</button>
+      <button type="button" class="btn btn-primary" id="recheckCloudBtn">Re-check Cloud Connection</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
