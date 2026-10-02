@@ -1147,7 +1147,7 @@
         showToast('Article published successfully! Live on website instantly.', 'success');
 
         setTimeout(() => {
-          window.open(`https://credbaba.com/blog/post.html?slug=${saved.slug}`, '_blank');
+          window.open(`https://credbaba.com/blog/${saved.slug}`, '_blank');
           publishBtn.disabled = false;
           publishBtn.textContent = 'Publish Article →';
         }, 800);

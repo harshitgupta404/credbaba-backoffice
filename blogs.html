@@ -277,8 +277,8 @@
       tableBody.innerHTML = filtered.map(blog => {
         const isPublished = (blog.status || '').toLowerCase() === 'published';
         const liveUrl = isPublished
-          ? `https://credbaba.com/blog/post.html?slug=${blog.slug}`
-          : `https://credbaba.com/blog/post.html?slug=${blog.slug}&preview=1`;
+          ? `https://credbaba.com/blog/${blog.slug}`
+          : `https://credbaba.com/blog/${blog.slug}?preview=1`;
 
         return `
           <tr>
